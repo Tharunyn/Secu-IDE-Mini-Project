@@ -8,9 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "slither-server": "python slither_server/app.py",
-    "slither-server-docker": "docker build -t slither-server slither_server && docker run --rm -p 5005:5005 slither-server",
+    "slither-server-docker": "docker build -t slither-server slither_server && docker run -d --name slither-server --rm -p 5005:5005 slither-server",
     "slither-server-docker-build": "docker build -t slither-server slither_server",
-    "slither-server-docker-run": "docker run --rm -p 5005:5005 slither-server"
+    "slither-server-docker-run": "docker run -d --name slither-server --rm -p 5005:5005 slither-server",
+    "slither-server-docker-stop": "docker stop slither-server || true",
+    "slither-server-docker-logs": "docker logs -f slither-server"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

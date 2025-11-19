@@ -3,6 +3,7 @@ import React, { useRef, useState } from 'react';
 import CodeEditor, { CodeEditorHandle } from '@/components/CodeEditor';
 import OutputPanel from '@/components/OutputPanel';
 import SlitherOutput from '@/components/SlitherOutput';
+import AnalysisModal from '@/components/AnalysisModal';
 import { MessageSquare, X } from 'lucide-react';
 
 const HomePage: React.FC = () => {
@@ -16,6 +17,10 @@ const HomePage: React.FC = () => {
   const [slitherLoading, setSlitherLoading] = useState(false);
   const [slitherOutput, setSlitherOutput] = useState('');
   const [slitherErrors, setSlitherErrors] = useState('');
+  const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
+  const [analysisSummary, setAnalysisSummary] = useState('');
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const editorRef = useRef<CodeEditorHandle>(null);
 
   const handleCompile = async (code: string) => {
@@ -72,6 +77,8 @@ const HomePage: React.FC = () => {
     setSlitherLoading(true);
     setSlitherOutput('');
     setSlitherErrors('');
+    setAnalysisSummary('');
+    setAnalysisModalOpen(false);
     try {
       const response = await fetch('/api/slither', {
         method: 'POST',
@@ -95,12 +102,59 @@ const HomePage: React.FC = () => {
     }
   };
 
+  const handleAnalyzeWithAI = async () => {
+    if (!slitherOutput && !slitherErrors) return;
+    
+    setAnalysisModalOpen(true);
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    setAnalysisSummary('');
+    
+    try {
+      const code = editorRef.current?.getCode() || '';
+      const response = await fetch('/api/analyze-slither', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          code,
+          slitherOutput,
+          slitherErrors 
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok || !data.summary) {
+        throw new Error(data.error || 'AI analysis failed');
+      }
+      
+      setAnalysisSummary(data.summary);
+    } catch (error: any) {
+      setAnalysisError(error.message || 'Failed to analyze with AI');
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
   return (
     <main className="h-screen w-full p-4 bg-gray-900 text-white relative">
       <h1 className="text-2xl font-bold mb-4">Secu-IDE</h1>
       <CodeEditor onCompile={handleCompile} ref={editorRef} onTest={handleSlitherTest} />
       <OutputPanel output={output} />
-      <SlitherOutput output={slitherOutput} errors={slitherErrors} loading={slitherLoading} />
+      <SlitherOutput 
+        output={slitherOutput} 
+        errors={slitherErrors} 
+        loading={slitherLoading}
+        onAnalyzeWithAI={handleAnalyzeWithAI}
+        aiAnalyzing={analysisLoading}
+      />
+      <AnalysisModal
+        isOpen={analysisModalOpen}
+        onClose={() => setAnalysisModalOpen(false)}
+        summary={analysisSummary}
+        loading={analysisLoading}
+        error={analysisError}
+      />
       {/* AI Chat Button */}
       {!aiSidebarOpen && (
         <button
