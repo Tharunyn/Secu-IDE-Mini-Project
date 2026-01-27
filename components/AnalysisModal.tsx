@@ -68,11 +68,25 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, summary,
                   if (line.match(/^#+\s/)) {
                     const level = line.match(/^#+/)?.[0].length || 0;
                     const text = line.replace(/^#+\s/, '');
-                    const Tag = `h${Math.min(level, 6)}` as keyof JSX.IntrinsicElements;
-                    return (
-                      <Tag key={idx} className={`font-bold text-white mt-4 mb-2 ${level === 1 ? 'text-xl' : level === 2 ? 'text-lg' : 'text-base'}`}>
-                        {text}
-                      </Tag>
+                    const HeadingComponents = {
+                      1: 'h1',
+                      2: 'h2',
+                      3: 'h3',
+                      4: 'h4',
+                      5: 'h5',
+                      6: 'h6',
+                    } as const;
+
+                    const headingLevel = Math.min(Math.max(level, 1), 6) as keyof typeof HeadingComponents;
+                    const TagName = HeadingComponents[headingLevel];
+                    
+                    return React.createElement(
+                      TagName,
+                      {
+                        key: idx,
+                        className: `font-bold text-white mt-4 mb-2 ${level === 1 ? 'text-xl' : level === 2 ? 'text-lg' : 'text-base'}`
+                      },
+                      text
                     );
                   }
                   // Format numbered/bulleted lists
