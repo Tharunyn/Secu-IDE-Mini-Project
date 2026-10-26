@@ -20,9 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . ./
 
-EXPOSE 5005
+EXPOSE 10000
 
-CMD ["python", "app.py"]
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-5005} --workers 1 --timeout 55 app:app"]
 
 
 

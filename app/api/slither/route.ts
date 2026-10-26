@@ -1,48 +1,84 @@
+
 import { NextRequest, NextResponse } from 'next/server';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const { code } = await req.json();
+    const body = await req.json().catch(() => null);
+    const code = body?.code;
 
-    if (!code) {
-      return NextResponse.json({ error: 'Missing Solidity code' }, { status: 400 });
-    }
-
-    // Proxy request to Slither Flask backend
-    const response = await fetch('http://localhost:5005/analyze', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ code }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Failed to get error details' }));
+    if (typeof code !== 'string' || !code.trim()) {
       return NextResponse.json(
-        { error: errorData.error || 'Slither backend returned an error', details: errorData },
-        { status: response.status }
+        { error: 'Missing Solidity code' },
+        { status: 400 }
       );
     }
 
-    const data = await response.json();
-    return NextResponse.json(data);
-  } catch (error: any) {
-    // Check if it's a connection error
-    if (error.code === 'ECONNREFUSED' || error.message?.includes('fetch failed')) {
+    // Use localhost only during local development.
+    const backendUrl =
+      process.env.SLITHER_BACKEND_URL ||
+      (process.env.NODE_ENV === 'development'
+        ? 'http://localhost:5005'
+        : '');
+
+    if (!backendUrl) {
       return NextResponse.json(
         {
-          error: 'Cannot connect to Slither backend. Make sure the Docker container is running.',
-          hint: 'Run: npm run slither-server-docker'
+          error: 'Slither backend is not configured.',
+          hint: 'Set SLITHER_BACKEND_URL in Vercel.'
         },
         { status: 503 }
       );
     }
+
+    const token = process.env.SLITHER_BACKEND_TOKEN;
+    const url = `${backendUrl.replace(/\/+$/, '')}/analyze`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'X-Slither-Token': token } : {})
+      },
+      body: JSON.stringify({ code }),
+      signal: AbortSignal.timeout(55_000)
+    });
+
+    const data = await response.json().catch(() => ({
+      error: 'Slither backend returned an invalid response.'
+    }));
+
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          error: data.error || 'Slither backend returned an error',
+          details: data
+        },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json(data);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : 'Unknown error';
+
+    if (message.toLowerCase().includes('timeout')) {
+      return NextResponse.json(
+        { error: 'Slither analysis timed out.' },
+        { status: 504 }
+      );
+    }
+
     return NextResponse.json(
-      { error: error.message || 'Unknown error occurred' },
-      { status: 500 }
+      {
+        error: 'Cannot connect to Slither backend.',
+        details: message,
+        hint: 'Check SLITHER_BACKEND_URL and the hosted backend logs.'
+      },
+      { status: 503 }
     );
   }
 }
-
-
